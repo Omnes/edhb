@@ -1,0 +1,23 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Robin's Deckbuilder</title>
+  <script type="text/javascript" src="main.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+</body>
+
+<script type="text/javascript">
+var storedState = localStorage.getItem('deckbuilder-save');
+var startingState = storedState ? JSON.parse(storedState) : null;
+var main = Elm.Main.fullscreen(startingState);
+main.ports.setStorage.subscribe(function(state) {
+    localStorage.setItem('deckbuilder-save', JSON.stringify(state));
+});
+</script>
+
+</html>

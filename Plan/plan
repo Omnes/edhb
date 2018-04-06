@@ -1,0 +1,48 @@
+problem beskrivning
+
+bygger idag deck i excel genom att pasta in namnen från scryfall/edhrec och matar in manakostnad / korteffekt manuellt
+behöver ett verktyg som kan göra detta automatiskt från kortnamnet och visuellt visar informationen
+
+första scopet
+ett inmatningsfält
+inga categorier
+en add kanpp som lägger till det kortet som står i inmatningsfältet
+kortnamnet + manakostnaden visas sen i en lista
+använder scryfall apiet för att hämta kortet utifrån namnet
+
+scope 2
+parsa manacost
+visa manacost
+parsa oracle text
+visa oracle text
+
+scope 3 
+categorier
+
+scope 4
+implement deck / maybe
+ta bort / flytta till maybe
+maybe -> main
+
+
+
+icebox
+categorier
+type parser
+egna categorier
+redigera
+spara listan
+massimport
+drag / släpp
+markera owned
+export buylist
+    include maybeoption
+    include basic lands option
+basic land stöd
+stats
+    card count
+    average cmc
+    type count
+    mana curve
+    category count
+
