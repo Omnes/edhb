@@ -56,17 +56,17 @@ type alias Card = {
     , toughness : Maybe Int
     , oracleText : String
     , imageUri : String
-    , categories : List Int -- move this into a separate record to hold input data
+    --, categories : List Int -- move this into a separate record to hold input data
 }
 
-type alias CardData = {
-    cardName : String
+type alias CardSaveData = {
+    name : String
     , categories : List Int
 }
 
 type alias SaveData = {
     categories : List Category
-    , cardData : List CardData
+    , cardData : List CardSaveData
 }
 
 type alias ImportBoxData = {
@@ -78,10 +78,21 @@ type alias ImportBoxData = {
 type alias Model = {
     importBoxData : ImportBoxData
     , deck : List Card
-    , maybeBoard : List Card
-    , expandedCard : Maybe String
-    , availiableCategories : List Category
+--    , maybeBoard : List Card
+    , expandedCardName : Maybe String
+    , saveData : SaveData
 }
+
+emptySaveData = 
+    { categories = [{id = 0, name = "Card draw"},{id = 1, name = "Control"},{id = 2, name = "Ramp"},{id = 3, name = "Util"},{id = 4, name = "Fun"}]
+    , cardData = []
+    }
+
+emptyCardSaveData cardName = 
+    { name = cardName
+    , categories = []
+    }
+    
 
 apiUrl : String
 apiUrl = "https://api.scryfall.com"
@@ -91,9 +102,9 @@ init =
     ( {
         importBoxData = { inputFieldText = "", importStatusText = Nothing, massImportFieldText = "ponder\nvorinclex\nhavok festival\nhypergenesis\nmalignus"}
         , deck = []
-        , maybeBoard = []
-        , expandedCard = Nothing
-        , availiableCategories = [{id = 0, name = "Card draw"},{id = 1, name = "Control"},{id = 2, name = "Ramp"},{id = 3, name = "Util"},{id = 4, name = "Fun"}]
+--        , maybeBoard = []
+        , expandedCardName = Nothing
+        , saveData = emptySaveData
     }, Cmd.none )
 
 
@@ -139,14 +150,20 @@ update msg model =
                 RemoteData.Success jsonCard ->
                     let
                         newModel = setImportStatusText (Just ("Sucess: Added " ++ jsonCard.name)) model 
+                        saveData = model.saveData
+                        newSaveData = {saveData | cardData = (emptyCardSaveData jsonCard.name) :: saveData.cardData }
                     in
-                        {newModel | deck = (jsonCard |> convertJsonCardIntoCard) :: newModel.deck, expandedCard = Just jsonCard.name} ! []
+                        {newModel | deck = (jsonCard |> convertJsonCardIntoCard) :: newModel.deck, expandedCardName = Just jsonCard.name, saveData = newSaveData} ! []
                 RemoteData.Failure error ->
                     setImportStatusText (Just ("Error: " ++ toString error)) model ! []
         OnCardSelected cardName ->
-            {model | expandedCard = Just cardName} ! []
+            {model | expandedCardName = Just cardName} ! []
         SetCategoryOnCard value categoryId cardName ->
-            {model | deck = model.deck |> setCategoryOnCard cardName categoryId value} ! []
+            let 
+                saveData = model.saveData
+                newSaveData = {saveData | cardData = saveData.cardData |> setCategoryOnCard cardName categoryId value }
+            in  
+                {model | saveData = newSaveData } ! []
 
 setCategory : Bool -> Int -> List Int -> List Int
 setCategory value categoryId cardCategoryList =
@@ -158,7 +175,7 @@ setCategory value categoryId cardCategoryList =
         (True, False) -> cardCategoryList |> List.partition (\c -> c == categoryId) |> Tuple.second
         (_, _) -> cardCategoryList
 
-setCategoryOnCard : String -> Int -> Bool -> List Card -> List Card
+setCategoryOnCard : String -> Int -> Bool -> List CardSaveData -> List CardSaveData
 setCategoryOnCard cardName categoryId value cardList =
     cardList |> List.map (\c -> if c.name == cardName then {c | categories = setCategory value categoryId c.categories} else c)
 
@@ -175,7 +192,7 @@ onEnter msg =
 
 -- Misc 
 
-findCard : String -> List Card -> Maybe Card
+--findCard : String -> List Card -> Maybe Card
 findCard cardName cardList =
     cardList |> List.filter (\c -> c.name == cardName) |> List.head
 
@@ -276,7 +293,7 @@ convertJsonCardIntoCard jsonCard =
         , toughness = parseMaybeStringToMaybeInt jsonCard.toughness
         , oracleText = jsonCard.oracleText
         , imageUri = jsonCard.imageUris.normal
-        , categories = []
+        --, categories = []
     }
 
 validateCardNameInput : String -> ( Bool, String )
@@ -431,29 +448,30 @@ renderCardCategoryCheckboxes : String -> List Category -> List Int -> Html Msg
 renderCardCategoryCheckboxes cardName availiableCategories cardCategories =
     div [] (availiableCategories |> List.map (\c -> renderCardCategoryCheckbox cardName cardCategories c))
 
-renderExpandedCard expandedCard availiableCategories cardList =
-    case expandedCard of
+renderExpandedCard : Maybe String -> SaveData -> List Card -> Html Msg
+renderExpandedCard expandedCardName saveData cardList =
+    case expandedCardName of
     Nothing -> 
         div [][]
     Just cardName ->
-        case findCard cardName cardList of
-        Nothing -> 
-            div [][]
-        Just c -> 
+        case (findCard cardName cardList, findCard cardName saveData.cardData) of
+        (Just c, Just scd) -> 
             div [] 
                 [
                     img [src c.imageUri] []
-                    , renderCardCategoryCheckboxes c.name availiableCategories c.categories
+                    , renderCardCategoryCheckboxes c.name saveData.categories scd.categories
                 ]
+        _ -> 
+            div [][]
 
 view : Model -> Html Msg
 view model =
     div []
         [ renderCardInputBox model.importBoxData
         , br [] []
-        , renderExpandedCard model.expandedCard model.availiableCategories model.deck
+        , renderExpandedCard model.expandedCardName model.saveData model.deck
         , renderDeckList model.deck
-        , renderMaybeBoard model.maybeBoard
+        --, renderMaybeBoard model.maybeBoard
         ]
 
 
