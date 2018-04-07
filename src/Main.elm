@@ -1,6 +1,6 @@
-module Main exposing (..)
+port module Main exposing (..)
 
-import Html exposing (Html, div, text, program, input, button, br, Attribute, textarea, img)
+import Html exposing (Html, div, text, programWithFlags, input, button, br, Attribute, textarea, img)
 import Html.Events exposing (onClick, onInput, on, keyCode)
 import Html.Attributes exposing (placeholder, value, src)
 
@@ -67,6 +67,7 @@ type alias CardSaveData = {
 type alias SaveData = {
     categories : List Category
     , cardData : List CardSaveData
+    , jsonCards : List JsonCard
 }
 
 type alias ImportBoxData = {
@@ -83,9 +84,12 @@ type alias Model = {
     , saveData : SaveData
 }
 
+port setStorage : SaveData -> Cmd msg
+
 emptySaveData = 
     { categories = [{id = 0, name = "Card draw"},{id = 1, name = "Control"},{id = 2, name = "Ramp"},{id = 3, name = "Util"},{id = 4, name = "Fun"}]
     , cardData = []
+    , jsonCards = []
     }
 
 emptyCardSaveData cardName = 
@@ -97,17 +101,19 @@ emptyCardSaveData cardName =
 apiUrl : String
 apiUrl = "https://api.scryfall.com"
 
-init : ( Model, Cmd Msg )
-init =
+init : Maybe SaveData -> ( Model, Cmd Msg )
+init saveData =
     ( {
-        importBoxData = { inputFieldText = "", importStatusText = Nothing, massImportFieldText = "ponder\nvorinclex\nhavok festival\nhypergenesis\nmalignus"}
-        , deck = []
---        , maybeBoard = []
+        importBoxData = { inputFieldText = "", importStatusText = Nothing, massImportFieldText = ""}
+        , deck = initDeck saveData
         , expandedCardName = Nothing
-        , saveData = emptySaveData
+        , saveData = Maybe.withDefault emptySaveData saveData
     }, Cmd.none )
 
-
+initDeck saveData =
+    case saveData of
+        Nothing -> []
+        Just sd -> sd.jsonCards |> List.map convertJsonCardIntoCard
 -- MESSAGES
 
 
@@ -151,9 +157,9 @@ update msg model =
                     let
                         newModel = setImportStatusText (Just ("Sucess: Added " ++ jsonCard.name)) model 
                         saveData = model.saveData
-                        newSaveData = {saveData | cardData = (emptyCardSaveData jsonCard.name) :: saveData.cardData }
+                        newSaveData = {saveData | cardData = (emptyCardSaveData jsonCard.name) :: saveData.cardData, jsonCards = jsonCard :: saveData.jsonCards }
                     in
-                        {newModel | deck = (jsonCard |> convertJsonCardIntoCard) :: newModel.deck, expandedCardName = Just jsonCard.name, saveData = newSaveData} ! []
+                        {newModel | deck = (jsonCard |> convertJsonCardIntoCard) :: newModel.deck, expandedCardName = Just jsonCard.name, saveData = newSaveData} ! [setStorage newSaveData]
                 RemoteData.Failure error ->
                     setImportStatusText (Just ("Error: " ++ toString error)) model ! []
         OnCardSelected cardName ->
@@ -163,7 +169,9 @@ update msg model =
                 saveData = model.saveData
                 newSaveData = {saveData | cardData = saveData.cardData |> setCategoryOnCard cardName categoryId value }
             in  
-                {model | saveData = newSaveData } ! []
+                {model | saveData = newSaveData } ! [setStorage newSaveData]
+
+
 
 setCategory : Bool -> Int -> List Int -> List Int
 setCategory value categoryId cardCategoryList =
@@ -478,9 +486,9 @@ view model =
 -- MAIN
 
 
-main : Program Never Model Msg
+main : Program (Maybe SaveData) Model Msg
 main =
-    program
+    programWithFlags
         { init = init
         , view = view
         , update = update
