@@ -2,7 +2,7 @@ port module Main exposing (..)
 
 import Html exposing (Html, div, text, programWithFlags, input, button, br, Attribute, textarea, img)
 import Html.Events exposing (onClick, onInput, on, keyCode)
-import Html.Attributes exposing (placeholder, value, src)
+import Html.Attributes exposing (placeholder, value, src, class)
 
 import Regex exposing (HowMany,replace,regex)
 
@@ -146,22 +146,13 @@ update msg model =
                 (True, reson) ->
                     (model |> setImportStatusText (Just "Starting fetch") |> setImportFieldText "") ! [fetchCard cardName]
         MassImportCards cardList ->
-            model ! (List.map (\c -> fetchCard c) cardList)
+            let
+                importBoxData = model.importBoxData
+                newImportBoxData = {importBoxData | massImportFieldText = ""}
+            in  
+                {model | importBoxData = newImportBoxData} ! (List.map (\c -> fetchCard c) cardList)
         OnFetchCompleted response ->
-            case response of
-                RemoteData.NotAsked ->
-                    setImportStatusText (Just "NotAsked") model ! []
-                RemoteData.Loading ->
-                    setImportStatusText (Just "Loading") model ! []
-                RemoteData.Success jsonCard ->
-                    let
-                        newModel = setImportStatusText (Just ("Sucess: Added " ++ jsonCard.name)) model 
-                        saveData = model.saveData
-                        newSaveData = {saveData | cardData = (emptyCardSaveData jsonCard.name) :: saveData.cardData, jsonCards = jsonCard :: saveData.jsonCards }
-                    in
-                        {newModel | deck = (jsonCard |> convertJsonCardIntoCard) :: newModel.deck, expandedCardName = Just jsonCard.name, saveData = newSaveData} ! [setStorage newSaveData]
-                RemoteData.Failure error ->
-                    setImportStatusText (Just ("Error: " ++ toString error)) model ! []
+            onFetchCompleted model response
         OnCardSelected cardName ->
             {model | expandedCardName = Just cardName} ! []
         SetCategoryOnCard value categoryId cardName ->
@@ -171,7 +162,21 @@ update msg model =
             in  
                 {model | saveData = newSaveData } ! [setStorage newSaveData]
 
-
+onFetchCompleted model response =
+    case response of
+        RemoteData.NotAsked ->
+            setImportStatusText (Just "NotAsked") model ! []
+        RemoteData.Loading ->
+            setImportStatusText (Just "Loading") model ! []
+        RemoteData.Success jsonCard ->
+            let
+                newModel = setImportStatusText (Just ("Sucess: Added " ++ jsonCard.name)) model 
+                saveData = model.saveData
+                newSaveData = {saveData | cardData = (emptyCardSaveData jsonCard.name) :: saveData.cardData, jsonCards = jsonCard :: saveData.jsonCards }
+            in
+                {newModel | deck = (jsonCard |> convertJsonCardIntoCard) :: newModel.deck, expandedCardName = Just jsonCard.name, saveData = newSaveData} ! [setStorage newSaveData]
+        RemoteData.Failure error ->
+            setImportStatusText (Just ("Error: " ++ toString error)) model ! []
 
 setCategory : Bool -> Int -> List Int -> List Int
 setCategory value categoryId cardCategoryList =
@@ -394,34 +399,31 @@ renderManaCost manaCost =
 
 renderCard : Card -> Html Msg
 renderCard card = 
-    div[ Html.Attributes.style[("border-style", "solid"),("border-width", "1px")], onClick (OnCardSelected card.name) ][
+    div[ class "listCard", onClick (OnCardSelected card.name) ][
         div [] [text card.name] 
-        , div[] [text card.types]
+        --, div[] [text card.types]
         , renderManaCost card.manaCost
         , renderPowerAndToughness card
         --, div[] [text card.oracleText]
     ]
 
-renderCardList : List Card -> Html Msg
-renderCardList cards = 
-    div [] (cards |> List.map renderCard)
+renderCardColumn : String -> List Card -> Html Msg
+renderCardColumn title cards = 
+    div [ class "cardColumn" ] 
+    [ text title
+    , div [] (cards |> List.map renderCard)
+    ]
 
 renderDeckList : List Card -> Html Msg
 renderDeckList cards =
-    Html.fieldset [][
+    div [class "deckList"][
         text "Deck"
-        , renderCardList cards
+        , renderCardColumn "" cards
     ]
 
-renderMaybeBoard : List Card -> Html Msg
-renderMaybeBoard cards =
-    Html.fieldset [][
-        text "Maybe"
-        , renderCardList cards
-    ]
-
+checkbox : Bool -> msg -> String -> Html msg
 checkbox isChecked msg name =
-  Html.label[ Html.Attributes.style [("padding", "20px")] ]
+  Html.label[ class "labelCheckbox" ]
     [ input [ Html.Attributes.type_ "checkbox", onClick msg, Html.Attributes.checked isChecked ] []
     , text name
     ]
@@ -430,16 +432,15 @@ renderMassImportBox inputBoxData =
     div [] [
         textarea [placeholder "Mass import", onInput ChangeMassImportFieldText, value inputBoxData.massImportFieldText] []
         , button [ onClick (MassImportCards (String.split "\n" inputBoxData.massImportFieldText))] [ text "Mass import" ]
-        , renderImportStatusText inputBoxData.importStatusText
     ]
 
 renderCardInputBox : ImportBoxData -> Html Msg
 renderCardInputBox inputBoxData = 
-    Html.fieldset [] [
+    div [ class "cardInputBox"] [
         input [placeholder "Enter cardname", onInput ChangeInputFieldText, onEnter (AddCard inputBoxData.inputFieldText) , value inputBoxData.inputFieldText] []
         , button [ onClick (AddCard inputBoxData.inputFieldText)] [ text "Add" ]
-        , renderImportStatusText inputBoxData.importStatusText
         , renderMassImportBox inputBoxData
+        , renderImportStatusText inputBoxData.importStatusText
     ]
 
 renderCardCategoryCheckbox : String -> List Int -> Category -> Html Msg
@@ -464,9 +465,9 @@ renderExpandedCard expandedCardName saveData cardList =
     Just cardName ->
         case (findCard cardName cardList, findCard cardName saveData.cardData) of
         (Just c, Just scd) -> 
-            div [] 
+            div [class "expandedCard"] 
                 [
-                    img [src c.imageUri] []
+                    img [src c.imageUri, class "expandedCardImg"] []
                     , renderCardCategoryCheckboxes c.name saveData.categories scd.categories
                 ]
         _ -> 
@@ -474,12 +475,12 @@ renderExpandedCard expandedCardName saveData cardList =
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ renderCardInputBox model.importBoxData
-        , br [] []
-        , renderExpandedCard model.expandedCardName model.saveData model.deck
-        , renderDeckList model.deck
-        --, renderMaybeBoard model.maybeBoard
+    div [ class "deckbuilder"]
+        [ div [class "sidebar"]
+            [ renderCardInputBox model.importBoxData
+            , renderExpandedCard model.expandedCardName model.saveData model.deck
+            ]
+        , div [class "deckarea"] [ renderDeckList model.deck ]
         ]
 
 

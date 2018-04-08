@@ -1,0 +1,27 @@
+.deckbuilder {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+}
+
+.sidebar {
+    flex-direction: column;
+}
+
+.cardInputBox {
+
+}
+
+.expandedCard {
+
+}
+
+.deckarea {
+    flex-direction: column;
+    height: 100%;
+    overflow: scroll;
+}
+
+.listCard {
+    flex-direction: row;
+}
